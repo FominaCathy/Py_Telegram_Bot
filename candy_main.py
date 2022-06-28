@@ -5,18 +5,20 @@
 
 # ход = сумма конфет // (28+1) - остаток от деления
 
+from ast import Not
 from asyncio.log import logger
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, CallbackQueryHandler
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
+from random import randint
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler
+from telegram import ReplyKeyboardMarkup
 import telegram
 import logging
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-import bot_commander
+
+BEGIN, LEVEL, CANDY = range(3)
 
 logger = logging.getLogger('logger')
 case_lever = logging.getLogger('case_lever')
 logger.info = 2021
-BEGIN, CANDY = range(2)
+
 
 bot = telegram.Bot('5549395398:AAG75bKf059jORftOlNHwAb1YpAJu0rU5tg')
 
@@ -31,58 +33,64 @@ def game (update, context): #
     context.bot.send_message(chat_id=update.effective_chat.id, text = task)
       
     context.bot.send_message(chat_id=update.effective_chat.id, text = "Ты готов?: да/нет")
-    return BEGIN
+    return LEVEL
 
-
-def begin (update, context): # 
-    
+def level (update, context):
     if str(update.message.text).lower() == 'да':
         keyboard = [['Простой', 'Сложный']]
         markup_key = ReplyKeyboardMarkup(keyboard, resize_keyboard = True, one_time_keyboard=True)
-
         context.bot.send_message(chat_id=update.effective_chat.id, text = "Выбери уровень: Простой/Сложный",reply_markup=markup_key,)
-        
-        case_lever.info = markup_key
-
-        lever = str("введите кол-во конфет, которое берете (от 1 до 28): ")
-        context.bot.send_message(chat_id=update.effective_chat.id, text = lever)
-    
-        return CANDY
+        return BEGIN
     else:
-        ConversationHandler.END
+        context.bot.send_message(chat_id=update.effective_chat.id, text = "ОК. поиграем в следующий раз")
+        return ConversationHandler.END
 
 
-
+def begin (update, context): # 
+    case_lever.info = update.message.text
+    
+    lever = str("введите кол-во конфет (от 1 до 28): ")
+    context.bot.send_message(chat_id=update.effective_chat.id, text = lever)
+    
+    return CANDY
 
 def candy (update, context):
     user = update.message.from_user  # определяем пользователя
   
     stack_candy = int(logger.info)
-
-    step_game = int(update.message.text)
-
-    lever = str("введите кол-во конфет, которое берете (от 1 до 28): ")
-    context.bot.send_message(chat_id=update.effective_chat.id, text = lever)
-
- 
-    if (step_game == stack_candy)and(step_game < 29): # игрок забирает остатки конфет
-        context.bot.send_message(chat_id=update.effective_chat.id, text = f"{user.first_name}, ты выиграл! Поздавляю!")
+    if update.message.text == 'stop':
         return ConversationHandler.END
-    elif (stack_candy - step_game)<29 : # ход бота и конфет 28 и меньше - тогда бот выиграл
-        context.bot.send_message(chat_id=update.effective_chat.id, text = f"{user.first_name}, я выиграл!")
-        return ConversationHandler.END
+    elif update.message.text.isdigit() == False:
+        context.bot.send_message(chat_id=update.effective_chat.id, text = "попробуйте еще раз (выход по слову stop)")
     else:
-        stack_candy = stack_candy - step_game
-        step_bot =  stack_candy%29
-        msg = f"мой ход: {step_bot}. \n В куче осталось {(stack_candy - step_bot)}" #ход бота
-        context.bot.send_message(chat_id=update.effective_chat.id, text = msg)
-        stack_candy -= step_bot #определяем остаток конфет в куче
-        logger.info =  stack_candy   
+        step_game = int(update.message.text)
 
-def end(update, _):
+        if (step_game > 28):
+            context.bot.send_message(chat_id=update.effective_chat.id, text = "попробуйте еще раз")
+        elif (step_game == stack_candy)and(step_game < 29): # игрок забирает остатки конфет
+            context.bot.send_message(chat_id=update.effective_chat.id, text = f"{user.first_name}, ты выиграл! Поздавляю!")
+            return ConversationHandler.END
+        elif (stack_candy - step_game)<29 : # ход бота и конфет 28 и меньше - тогда бот выиграл
+            context.bot.send_message(chat_id=update.effective_chat.id, text = f"{user.first_name}, я забираю остаток конфет и я выиграл!")
+            return ConversationHandler.END
+        else:
+            stack_candy = stack_candy - step_game
+            
+            if case_lever.info == "Простой": 
+                step_bot = randint(1,29)
+            else:
+                step_bot =  max(stack_candy%29, 28)
+
+            msg = f"мой ход: {step_bot}. \n В куче осталось {(stack_candy - step_bot)}" #ход бота
+            context.bot.send_message(chat_id=update.effective_chat.id, text = msg)
+            stack_candy -= step_bot #определяем остаток конфет в куче
+            logger.info =  stack_candy 
+            context.bot.send_message(chat_id=update.effective_chat.id, text = "теперь твой ход. (выход по слову stop)")      
+
+def end(update, context):
        
     user = update.message.from_user  # определяем пользователя
-    update.message.reply_text("заход в END")
+    context.bot.send_message(chat_id=update.effective_chat.id, text ="Конец")
     # Заканчиваем игру
     return ConversationHandler.END
 
@@ -90,6 +98,7 @@ def end(update, _):
 candy_handler = ConversationHandler(
         entry_points=[CommandHandler('game', game)],
         states= {
+            LEVEL: [MessageHandler(Filters.text, level)],
             BEGIN: [MessageHandler(Filters.text, begin)], 
             CANDY: [MessageHandler(Filters.text, candy)]
                 },
@@ -97,6 +106,8 @@ candy_handler = ConversationHandler(
     )
 
 dispatcher.add_handler(candy_handler)
+
+
 
 print('start bot')
 updater.start_polling()
