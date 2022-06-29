@@ -79,7 +79,10 @@ def candy (update, context):
             if case_lever.info == "Простой": 
                 step_bot = randint(1,29)
             else:
-                step_bot =  max(stack_candy%29, 28)
+                if stack_candy%29 == 0: 
+                    step_bot =  28
+                else : 
+                    step_bot =  stack_candy%29
 
             msg = f"мой ход: {step_bot}. \n В куче осталось {(stack_candy - step_bot)}" #ход бота
             context.bot.send_message(chat_id=update.effective_chat.id, text = msg)
